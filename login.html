@@ -129,6 +129,11 @@ body{
 
 <script>
 /* ===============================
+   主业务服务器（非常重要）
+================================ */
+const MAIN_API =  "https://crypto-management-production-5e04.up.railway.app";
+
+/* ===============================
    扫码服务域名（关键）
 ================================ */
 const QR_API = "https://nexbitsafeloginscan-production.up.railway.app";
@@ -173,18 +178,71 @@ function startPoll(){
     const res = await fetch(`${QR_API}/api/qr/status?token=` + token);
     const data = await res.json();
 
-    if(data.status === 'success' && data.uid){
-      clearInterval(timer);
+  if (data.status === 'success' && data.uid) {
+  clearInterval(timer);
 
-      localStorage.setItem("uid", data.uid);
-      document.getElementById('status').style.display = 'block';
+  uid = data.uid;
+  localStorage.setItem("uid", uid);
+  document.getElementById('status').style.display = 'block';
 
-      // 👉 这里继续接你主业务 uid / SSE 即可
-    }
+  // ① 同步用户到主业务
+  await fetch(`${MAIN_API}/api/users/sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId: uid })
+  });
+
+  // ② 拉一次当前余额
+  fetch(`${MAIN_API}/api/balance/${uid}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        console.log('💰 当前余额:', d.balance);
+        // 👉 你可以在这里渲染余额
+      }
+    });
+
+  // ③ 建立 SSE（实时余额 / 订单）
+  startBalanceSSE(uid);
+}
+
   },1500);
 }
 
 createQR();
+/* ===============================
+   余额 / 订单 SSE
+================================ */
+let balanceES = null;
+
+function startBalanceSSE(uid) {
+  if (balanceES) balanceES.close();
+
+  balanceES = new EventSource(`${MAIN_API}/wallet/${uid}/sse`);
+
+  balanceES.addEventListener('balance', (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      console.log('🔄 SSE 余额更新:', data.balance);
+
+      // 👉 这里实时更新余额 UI
+    } catch {}
+  });
+
+  balanceES.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      console.log('📦 SSE 消息:', data);
+    } catch {}
+  };
+
+  balanceES.onerror = () => {
+    console.warn('⚠️ SSE 断开，5 秒后重连');
+    balanceES.close();
+    setTimeout(() => startBalanceSSE(uid), 5000);
+  };
+}
+
 </script>
 
 </body>
