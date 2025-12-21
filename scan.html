@@ -125,16 +125,22 @@ async function onScan(text){
     document.getElementById('err').style.display='block';
     return;
   }
+const res = await fetch(`${QR_API}/api/qr/confirm`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ token, uid })
+});
 
-  await fetch(`${QR_API}/api/qr/confirm`,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({ token, uid })
-  });
+const data = await res.json();
 
-  document.getElementById('ok').style.display='block';
+if (data && data.ok) {
+  document.getElementById('ok').style.display = 'block';
   reader.stop();
+} else {
+  alert('❌ 登录确认失败，请重新扫描');
 }
+}
+
 
 Html5Qrcode.getCameras().then(()=>{
   reader.start(

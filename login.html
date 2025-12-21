@@ -156,12 +156,13 @@ localStorage.setItem("nexbit_uid", uid);
    打开手机扫码页
 ================================ */
 function openScan(){
-  window.location.href = 'https://loginscan-production.up.railway.app/scan.html';
+  if (!token) return alert("QR not ready yet");
+  window.location.href =
+    `${QR_API}/scan.html?token=${token}`;
 }
 
 let token = null;
 let timer = null;
-
 /* ===============================
    创建二维码
 ================================ */
@@ -180,7 +181,10 @@ function startPoll(){
   timer = setInterval(async ()=>{
     if(!token) return;
 
-    const res = await fetch(`${QR_API}/api/qr/status?token=` + token);
+   const res = await fetch(
+  `${QR_API}/api/qr/status?token=${token}&_=${Date.now()}`,
+  { cache: "no-store" }
+);
     const data = await res.json();
 
  if (data.status === 'success' && data.uid) {

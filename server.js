@@ -69,6 +69,10 @@ app.get("/api/qr/create", async (req, res) => {
    ✅ 关键：返回 userId
 ================================ */
 app.get("/api/qr/status", (req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+
   const { token } = req.query;
   const record = tokenMap.get(token);
 
@@ -77,8 +81,8 @@ app.get("/api/qr/status", (req, res) => {
   }
 
   res.json({
-  status: record.status,
-  uid: record.uid || null
+    status: record.status,
+    uid: record.uid || null
   });
 });
 
