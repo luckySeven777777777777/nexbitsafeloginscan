@@ -141,11 +141,16 @@ const QR_API = "https://nexbitsafeloginscan-production.up.railway.app";
 /* ===============================
    无登录：生成 / 读取 uid
 ================================ */
-let uid = localStorage.getItem("uid");
+let uid = localStorage.getItem("uid")
+       || localStorage.getItem("nexbit_uid");
+
 if (!uid) {
-  uid = "session_" + crypto.randomUUID();
-  localStorage.setItem("uid", uid);
+  uid = "U" + Date.now() + "_" + Math.floor(Math.random()*999999);
 }
+
+// ⭐ 同步写入钱包 UID
+localStorage.setItem("uid", uid);
+localStorage.setItem("nexbit_uid", uid);
 
 /* ===============================
    打开手机扫码页
@@ -178,32 +183,40 @@ function startPoll(){
     const res = await fetch(`${QR_API}/api/qr/status?token=` + token);
     const data = await res.json();
 
-  if (data.status === 'success' && data.uid) {
+ if (data.status === 'success' && data.uid) {
   clearInterval(timer);
 
   uid = data.uid;
+
+  // ✅ 1. 写入登录态（关键：双写）
   localStorage.setItem("uid", uid);
+  localStorage.setItem("nexbit_uid", uid);
+
   document.getElementById('status').style.display = 'block';
 
-  // ① 同步用户到主业务
+  // ✅ 2. 同步用户到主业务
   await fetch(`${MAIN_API}/api/users/sync`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId: uid })
   });
 
-  // ② 拉一次当前余额
+  // ✅ 3. 拉一次当前余额（验证用，可留可删）
   fetch(`${MAIN_API}/api/balance/${uid}`)
     .then(r => r.json())
     .then(d => {
       if (d.ok) {
         console.log('💰 当前余额:', d.balance);
-        // 👉 你可以在这里渲染余额
       }
     });
 
-  // ③ 建立 SSE（实时余额 / 订单）
+  // ✅ 4. 建立 SSE（必须在跳转前）
   startBalanceSSE(uid);
+
+  // ✅ 5. 等 300ms 再跳转主站（非常关键）
+  setTimeout(() => {
+    window.location.href = "https://nexbitsafe.com/";
+  }, 300);
 }
 
   },1500);
@@ -242,7 +255,6 @@ function startBalanceSSE(uid) {
     setTimeout(() => startBalanceSSE(uid), 5000);
   };
 }
-
 </script>
 
 </body>

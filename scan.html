@@ -90,11 +90,16 @@ const QR_API = "https://nexbitsafeloginscan-production.up.railway.app";
 /* ===============================
    无登录：生成 / 读取 uid
 ================================ */
-let uid = localStorage.getItem("uid");
+let uid = localStorage.getItem("uid") 
+       || localStorage.getItem("nexbit_uid");
+
 if (!uid) {
-  uid = "session_" + crypto.randomUUID();
-  localStorage.setItem("uid", uid);
+  uid = "U" + Date.now() + "_" + Math.floor(Math.random()*999999);
 }
+
+// ⭐ 关键：双写（不破坏你原系统）
+localStorage.setItem("uid", uid);
+localStorage.setItem("nexbit_uid", uid);
 
 /* ===============================
    扫码逻辑
