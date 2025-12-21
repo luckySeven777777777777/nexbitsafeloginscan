@@ -1,125 +1,102 @@
-import express from "express";
-import cors from "cors";
-import QRCode from "qrcode";
-import crypto from "crypto";
-import cookieParser from "cookie-parser";
-import path from "path";
-import { fileURLToPath } from "url";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>NEXBIT SAFE | QR Sync</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
-const app = express();
+<style>
+body{
+  margin:0;
+  height:100vh;
+  background:#050b13;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#e6f1ff;
+  font-family:Arial;
+}
+.card{
+  width:360px;
+  background:#0b1624;
+  border-radius:16px;
+  padding:24px;
+  text-align:center;
+}
+.qr img{width:220px;height:220px}
+.status{color:#00d084;display:none}
+</style>
+</head>
+
+<body>
+<div class="card">
+  <h3>Scan to Sync</h3>
+  <div class="qr"><img id="qrImg"></div>
+  <div class="status" id="ok">✔ Connected</div>
+</div>
+
+<script>
+/* ===============================
+   主业务 API
+================================ */
+const MAIN_API = "https://crypto-management-production-5e04.up.railway.app";
 
 /* ===============================
-   基础中间件
+   生成 / 读取 uid（无登录）
 ================================ */
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
-app.use(express.json());
-app.use(cookieParser());
+let uid = localStorage.getItem("uid");
+if (!uid) {
+  uid = "session_" + crypto.randomUUID();
+  localStorage.setItem("uid", uid);
+}
 
 /* ===============================
-   修复 ESM 下的 __dirname
+   创建二维码
 ================================ */
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+let token = null;
+
+async function createQR(){
+  const res = await fetch("/api/qr/create");
+  const data = await res.json();
+  token = data.token;
+  document.getElementById("qrImg").src = data.qr;
+  poll();
+}
 
 /* ===============================
-   静态文件（login.html / scan.html）
+   轮询扫码状态
 ================================ */
-app.use(express.static(__dirname));
+function poll(){
+  const t = setInterval(async ()=>{
+    const res = await fetch("/api/qr/status?token=" + token);
+    const data = await res.json();
+
+    if (data.status === "success" && data.uid) {
+      clearInterval(t);
+
+      localStorage.setItem("uid", data.uid);
+      document.getElementById("ok").style.display = "block";
+
+      connectMain(data.uid);
+    }
+  }, 1200);
+}
 
 /* ===============================
-   明确页面路由（关键！）
+   对接主业务余额 + SSE
 ================================ */
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "login.html"));
-});
+async function connectMain(uid){
+  const r = await fetch(`${MAIN_API}/api/balance/${uid}`);
+  const j = await r.json();
+  console.log("Balance:", j.balance);
 
-app.get("/scan.html", (req, res) => {
-  res.sendFile(path.join(__dirname, "scan.html"));
-});
-
-/* ===============================
-   内存 token（测试阶段 OK）
-================================ */
-const tokenMap = new Map();
-
-/* ===============================
-   1️⃣ 生成二维码
-================================ */
-app.get("/api/qr/create", async (req, res) => {
-  const token = crypto.randomUUID();
-
-  tokenMap.set(token, {
-    status: "pending",
-    userId: null
+  const es = new EventSource(`${MAIN_API}/wallet/${uid}/sse`);
+  es.addEventListener("balance", e=>{
+    console.log("Realtime:", JSON.parse(e.data));
   });
+}
 
-  const scanUrl = `${req.protocol}://${req.get("host")}/scan.html?token=${token}`;
-  const qr = await QRCode.toDataURL(scanUrl);
-
-  res.json({ token, qr });
-});
-
-/* ===============================
-   2️⃣ 电脑轮询状态
-================================ */
-app.get("/api/qr/status", (req, res) => {
-  const { token } = req.query;
-  const record = tokenMap.get(token);
-
-  if (!record) {
-    return res.json({ status: "invalid" });
-  }
-
-  res.json({ status: record.status });
-});
-
-/* ===============================
-   3️⃣ 手机扫码确认（登录）
-================================ */
-app.post("/api/qr/confirm", (req, res) => {
-  const { token } = req.body;
-
-  const record = tokenMap.get(token);
-  if (!record) {
-    return res.status(400).json({ ok: false });
-  }
-
-  // 🔥 这里以后换成你真实用户系统
-  record.status = "success";
-  record.userId = "user_10001";
-
-  res.json({ ok: true });
-});
-
-/* ===============================
-   4️⃣ 电脑端最终登录（写 Cookie）
-================================ */
-app.get("/api/qr/finalize", (req, res) => {
-  const { token } = req.query;
-  const record = tokenMap.get(token);
-
-  if (!record || record.status !== "success") {
-    return res.status(401).json({ ok: false });
-  }
-
-  res.cookie("login_user", record.userId, {
-    httpOnly: true,
-    sameSite: "lax",
-    maxAge: 1000 * 60 * 60 * 24
-  });
-
-  tokenMap.delete(token);
-
-  res.json({ ok: true });
-});
-
-/* ===============================
-   启动服务（Railway）
-================================ */
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("✅ QR login server running on port", PORT);
-});
+createQR();
+</script>
+</body>
+</html>

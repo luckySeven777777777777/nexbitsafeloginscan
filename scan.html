@@ -19,7 +19,6 @@ body{
   align-items:center;
   justify-content:center;
 }
-
 .scan-card{
   width:360px;
   background:#0b1624;
@@ -28,7 +27,6 @@ body{
   padding:24px;
   text-align:center;
 }
-
 .logo{
   display:flex;
   align-items:center;
@@ -41,13 +39,11 @@ body{
   font-size:18px;
   font-weight:700;
 }
-
 .tip{
   font-size:13px;
   opacity:.75;
   margin-bottom:14px;
 }
-
 #reader{
   width:260px;
   height:260px;
@@ -56,7 +52,6 @@ body{
   overflow:hidden;
   background:#000;
 }
-
 .status{
   font-size:13px;
   color:#00d084;
@@ -82,11 +77,28 @@ body{
 
   <div id="reader"></div>
 
-  <div class="status" id="ok">✔ Login confirmed</div>
+  <div class="status" id="ok">✔ Connected</div>
   <div class="error" id="err">Invalid QR</div>
 </div>
 
 <script>
+/* ===============================
+   扫码服务域名（关键）
+================================ */
+const QR_API = "https://nexbitsafeloginscan-production.up.railway.app";
+
+/* ===============================
+   无登录：生成 / 读取 uid
+================================ */
+let uid = localStorage.getItem("uid");
+if (!uid) {
+  uid = "session_" + crypto.randomUUID();
+  localStorage.setItem("uid", uid);
+}
+
+/* ===============================
+   扫码逻辑
+================================ */
 const params = new URLSearchParams(location.search);
 let fixedToken = params.get('token');
 let locked = false;
@@ -109,10 +121,10 @@ async function onScan(text){
     return;
   }
 
-  await fetch('/api/qr/confirm',{
+  await fetch(`${QR_API}/api/qr/confirm`,{
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({token})
+    body:JSON.stringify({ token, uid })
   });
 
   document.getElementById('ok').style.display='block';

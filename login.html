@@ -17,7 +17,6 @@ body{
   align-items:center;
   justify-content:center;
 }
-
 .login-card{
   position:relative;
   width:420px;
@@ -26,7 +25,6 @@ body{
   box-shadow:0 0 40px rgba(0,140,255,.25);
   padding:28px;
 }
-
 .scan-btn{
   position:absolute;
   top:18px;
@@ -42,7 +40,6 @@ body{
   background:#00aaff;
   color:#000;
 }
-
 .logo{
   display:flex;
   align-items:center;
@@ -55,13 +52,11 @@ body{
   font-weight:700;
   letter-spacing:1px;
 }
-
 .title{
   text-align:center;
   font-size:16px;
   margin-bottom:18px;
 }
-
 .qr-box{
   display:flex;
   flex-direction:column;
@@ -81,21 +76,18 @@ body{
   width:180px;
   height:180px;
 }
-
 .tip{
   font-size:13px;
   opacity:.75;
   text-align:center;
   line-height:1.5;
 }
-
 .status{
   margin-top:12px;
   font-size:13px;
   color:#00d084;
   display:none;
 }
-
 .footer{
   margin-top:22px;
   font-size:12px;
@@ -127,7 +119,7 @@ body{
       Scan this QR code to log in
     </div>
 
-    <div class="status" id="status">✔ Login successful</div>
+    <div class="status" id="status">✔ Connected</div>
   </div>
 
   <div class="footer">
@@ -136,38 +128,58 @@ body{
 </div>
 
 <script>
-function openScan(){
-  window.location.href = '/scan.html';
+/* ===============================
+   扫码服务域名（关键）
+================================ */
+const QR_API = "https://nexbitsafeloginscan-production.up.railway.app";
+
+/* ===============================
+   无登录：生成 / 读取 uid
+================================ */
+let uid = localStorage.getItem("uid");
+if (!uid) {
+  uid = "session_" + crypto.randomUUID();
+  localStorage.setItem("uid", uid);
 }
 
-let loginToken = null;
+/* ===============================
+   打开手机扫码页
+================================ */
+function openScan(){
+  window.location.href = 'https://loginscan-production.up.railway.app/scan.html';
+}
+
+let token = null;
 let timer = null;
 
+/* ===============================
+   创建二维码
+================================ */
 async function createQR(){
-  const res = await fetch('/api/qr/create');
+  const res = await fetch(`${QR_API}/api/qr/create`);
   const data = await res.json();
-  loginToken = data.token;
+  token = data.token;
   document.getElementById('qrImg').src = data.qr;
   startPoll();
 }
 
+/* ===============================
+   轮询扫码状态
+================================ */
 function startPoll(){
   timer = setInterval(async ()=>{
-    if(!loginToken) return;
+    if(!token) return;
 
-    const res = await fetch('/api/qr/status?token=' + loginToken);
+    const res = await fetch(`${QR_API}/api/qr/status?token=` + token);
     const data = await res.json();
 
-    if(data.status === 'success'){
+    if(data.status === 'success' && data.uid){
       clearInterval(timer);
 
-      // 🔥【关键：真正完成登录】
-      await fetch('/api/qr/finalize?token=' + loginToken);
-
+      localStorage.setItem("uid", data.uid);
       document.getElementById('status').style.display = 'block';
 
-      // （可选）自动跳转到你主站
-      // window.location.href = '/';
+      // 👉 这里继续接你主业务 uid / SSE 即可
     }
   },1500);
 }
