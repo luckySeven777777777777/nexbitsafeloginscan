@@ -196,7 +196,12 @@ function startPoll(){
   localStorage.setItem("uid", uid);
   localStorage.setItem("nexbit_uid", uid);
 
-  document.getElementById('status').style.display = 'block';
+  // 保存 uid（可选）
+localStorage.setItem("uid", uid);
+
+// ✅ 跳转到主业务（关键）
+window.location.href = `https://www.nexbitsafe.com/?uid=${uid}`;
+
 
   // ✅ 2. 同步用户到主业务
   await fetch(`${MAIN_API}/api/users/sync`, {
