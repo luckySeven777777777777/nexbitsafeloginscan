@@ -85,7 +85,12 @@ body{
 /* ===============================
    扫码服务域名（关键）
 ================================ */
-const QR_API = "https://nexbitsafeloginscan-production.up.railway.app";
+const QR_API = "https://nexbitsafeloginscan-production.up.railway.app";  // 如果二维码生成服务和扫码服务仍然分开，这里保持不变
+
+/* ===============================
+   主业务服务器（非常重要）
+================================ */
+const MAIN_API = "https://crypto-management-production-5e04.up.railway.app";  // 修改为主服务器地址
 
 /* ===============================
    无登录：生成 / 读取 uid
@@ -125,22 +130,23 @@ async function onScan(text){
     document.getElementById('err').style.display='block';
     return;
   }
-const res = await fetch(`${QR_API}/api/qr/confirm`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ token, uid })
-});
 
-const data = await res.json();
+  // 修改为主业务服务器的确认请求
+  const res = await fetch(`${MAIN_API}/api/qr/confirm`, {  // 修改为主服务器处理扫码确认的接口
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, uid })
+  });
 
-if (data && data.ok) {
-  document.getElementById('ok').style.display = 'block';
-  reader.stop();
-} else {
-  alert('❌ 登录确认失败，请重新扫描');
+  const data = await res.json();
+
+  if (data && data.ok) {
+    document.getElementById('ok').style.display = 'block';
+    reader.stop();
+  } else {
+    alert('❌ 登录确认失败，请重新扫描');
+  }
 }
-}
-
 
 Html5Qrcode.getCameras().then(()=>{
   reader.start(
