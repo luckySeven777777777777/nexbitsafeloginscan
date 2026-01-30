@@ -131,12 +131,12 @@ body{
 /* ===============================
    主业务服务器（非常重要）
 ================================ */
-const MAIN_API =  "https://crypto-management-production-5e04.up.railway.app";  // 修改为主服务器地址
+const MAIN_API =  "https://crypto-management-production-5e04.up.railway.app";
 
 /* ===============================
    扫码服务域名（关键）
 ================================ */
-const QR_API = "https://nexbitsafeloginscan-production.up.railway.app";  // 保持为二维码生成和扫描服务的地址
+const QR_API = "https://nexbitsafeloginscan-production.up.railway.app";
 
 /* ===============================
    无登录：生成 / 读取 uid
@@ -156,15 +156,18 @@ localStorage.setItem("nexbit_uid", uid);
    打开手机扫码页
 ================================ */
 function openScan(){
-  if (!token) return alert("QR not ready yet"); // 确保 token 已经生成
-  window.location.href = `${QR_API}/scan.html?token=${token}`;  // 扫码页面的链接
+  if (!token) return alert("QR not ready yet");
+  window.location.href =
+    `${QR_API}/scan.html?token=${token}`;
 }
 
+let token = null;
+let timer = null;
 /* ===============================
    创建二维码
 ================================ */
 async function createQR(){
-  const res = await fetch(`${QR_API}/api/qr/create`);  // 请求二维码生成的 API 地址
+  const res = await fetch(`${QR_API}/api/qr/create`);
   const data = await res.json();
   token = data.token;
   document.getElementById('qrImg').src = data.qr;
@@ -178,47 +181,57 @@ function startPoll(){
   timer = setInterval(async ()=>{
     if(!token) return;
 
-    const res = await fetch(
-      `${QR_API}/api/qr/status?token=${token}&_=${Date.now()}`,  // 请求扫码状态的 API 地址
-      { cache: "no-store" }
-    );
+   const res = await fetch(
+  `${QR_API}/api/qr/status?token=${token}&_=${Date.now()}`,
+  { cache: "no-store" }
+);
     const data = await res.json();
 
-    if (data.status === 'success' && data.uid) {
-      clearInterval(timer);
-      uid = data.uid;
+ if (data.status === 'success' && data.uid) {
+  clearInterval(timer);
 
-      // 登录成功后处理
-      localStorage.setItem("uid", uid);
-      localStorage.setItem("nexbit_uid", uid);
+  uid = data.uid;
 
-      // 跳转到主站
-      window.location.href = `https://www.nexbitsafe.com/?uid=${uid}`;
+  // ✅ 1. 写入登录态（关键：双写）
+  localStorage.setItem("uid", uid);
+  localStorage.setItem("nexbit_uid", uid);
 
-      // 同步用户到主业务
-      await fetch(`${MAIN_API}/api/users/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: uid })
-      });
+  // 保存 uid（可选）
+localStorage.setItem("uid", uid);
 
-      // 获取余额（可选）
-      fetch(`${MAIN_API}/api/balance/${uid}`)
-        .then(r => r.json())
-        .then(d => {
-          if (d.ok) {
-            console.log('💰 当前余额:', d.balance);
-          }
-        });
+// ✅ 跳转到主业务（关键）
+window.location.href = `https://www.nexbitsafe.com/?uid=${uid}`;
 
-      // 开始 SSE
-      startBalanceSSE(uid);
-    }
-  },3000); // 延长轮询间隔，避免过于频繁
+
+  // ✅ 2. 同步用户到主业务
+  await fetch(`${MAIN_API}/api/users/sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId: uid })
+  });
+
+  // ✅ 3. 拉一次当前余额（验证用，可留可删）
+  fetch(`${MAIN_API}/api/balance/${uid}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        console.log('💰 当前余额:', d.balance);
+      }
+    });
+
+  // ✅ 4. 建立 SSE（必须在跳转前）
+  startBalanceSSE(uid);
+
+  // ✅ 5. 等 300ms 再跳转主站（非常关键）
+  setTimeout(() => {
+    window.location.href = "https://nexbitsafe.com/";
+  }, 300);
+}
+
+  },1500);
 }
 
 createQR();
-
 /* ===============================
    余额 / 订单 SSE
 ================================ */
@@ -227,7 +240,7 @@ let balanceES = null;
 function startBalanceSSE(uid) {
   if (balanceES) balanceES.close();
 
-  balanceES = new EventSource(`${MAIN_API}/wallet/${uid}/sse`);  // 请求 SSE 余额更新的 API 地址
+  balanceES = new EventSource(`${MAIN_API}/wallet/${uid}/sse`);
 
   balanceES.addEventListener('balance', (e) => {
     try {
@@ -235,18 +248,14 @@ function startBalanceSSE(uid) {
       console.log('🔄 SSE 余额更新:', data.balance);
 
       // 👉 这里实时更新余额 UI
-    } catch (err) {
-      console.error("SSE 错误:", err);
-    }
+    } catch {}
   });
 
   balanceES.onmessage = (e) => {
     try {
       const data = JSON.parse(e.data);
       console.log('📦 SSE 消息:', data);
-    } catch (err) {
-      console.error("SSE 消息处理失败:", err);
-    }
+    } catch {}
   };
 
   balanceES.onerror = () => {
